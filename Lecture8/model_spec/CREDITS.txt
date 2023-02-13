@@ -1,0 +1,3 @@
+Some of these functions have been adapted from the Computer Vision Toolkit of Andrea Fusiello
+Fusiello, A. "Visione computazionale. Tecniche di ricostruzione tridimensionale." Franco Angeli, Milano, 2018, 2a ed.
+http://www.diegm.uniud.it/fusiello/demo/toolkit/

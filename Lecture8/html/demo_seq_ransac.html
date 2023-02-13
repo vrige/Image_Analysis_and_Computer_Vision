@@ -1,0 +1,280 @@
+
+<!DOCTYPE html
+  PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html><head>
+      <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+   <!--
+This HTML was auto-generated from MATLAB code.
+To make changes, update the MATLAB code and republish this document.
+      --><title>demo_seq_ransac</title><meta name="generator" content="MATLAB 9.11"><link rel="schema.DC" href="http://purl.org/dc/elements/1.1/"><meta name="DC.date" content="2022-12-20"><meta name="DC.source" content="demo_seq_ransac.m"><style type="text/css">
+html,body,div,span,applet,object,iframe,h1,h2,h3,h4,h5,h6,p,blockquote,pre,a,abbr,acronym,address,big,cite,code,del,dfn,em,font,img,ins,kbd,q,s,samp,small,strike,strong,tt,var,b,u,i,center,dl,dt,dd,ol,ul,li,fieldset,form,label,legend,table,caption,tbody,tfoot,thead,tr,th,td{margin:0;padding:0;border:0;outline:0;font-size:100%;vertical-align:baseline;background:transparent}body{line-height:1}ol,ul{list-style:none}blockquote,q{quotes:none}blockquote:before,blockquote:after,q:before,q:after{content:'';content:none}:focus{outine:0}ins{text-decoration:none}del{text-decoration:line-through}table{border-collapse:collapse;border-spacing:0}
+
+html { min-height:100%; margin-bottom:1px; }
+html body { height:100%; margin:0px; font-family:Arial, Helvetica, sans-serif; font-size:10px; color:#000; line-height:140%; background:#fff none; overflow-y:scroll; }
+html body td { vertical-align:top; text-align:left; }
+
+h1 { padding:0px; margin:0px 0px 25px; font-family:Arial, Helvetica, sans-serif; font-size:1.5em; color:#d55000; line-height:100%; font-weight:normal; }
+h2 { padding:0px; margin:0px 0px 8px; font-family:Arial, Helvetica, sans-serif; font-size:1.2em; color:#000; font-weight:bold; line-height:140%; border-bottom:1px solid #d6d4d4; display:block; }
+h3 { padding:0px; margin:0px 0px 5px; font-family:Arial, Helvetica, sans-serif; font-size:1.1em; color:#000; font-weight:bold; line-height:140%; }
+
+a { color:#005fce; text-decoration:none; }
+a:hover { color:#005fce; text-decoration:underline; }
+a:visited { color:#004aa0; text-decoration:none; }
+
+p { padding:0px; margin:0px 0px 20px; }
+img { padding:0px; margin:0px 0px 20px; border:none; }
+p img, pre img, tt img, li img, h1 img, h2 img { margin-bottom:0px; }
+
+ul { padding:0px; margin:0px 0px 20px 23px; list-style:square; }
+ul li { padding:0px; margin:0px 0px 7px 0px; }
+ul li ul { padding:5px 0px 0px; margin:0px 0px 7px 23px; }
+ul li ol li { list-style:decimal; }
+ol { padding:0px; margin:0px 0px 20px 0px; list-style:decimal; }
+ol li { padding:0px; margin:0px 0px 7px 23px; list-style-type:decimal; }
+ol li ol { padding:5px 0px 0px; margin:0px 0px 7px 0px; }
+ol li ol li { list-style-type:lower-alpha; }
+ol li ul { padding-top:7px; }
+ol li ul li { list-style:square; }
+
+.content { font-size:1.2em; line-height:140%; padding: 20px; }
+
+pre, code { font-size:12px; }
+tt { font-size: 1.2em; }
+pre { margin:0px 0px 20px; }
+pre.codeinput { padding:10px; border:1px solid #d3d3d3; background:#f7f7f7; }
+pre.codeoutput { padding:10px 11px; margin:0px 0px 20px; color:#4c4c4c; }
+pre.error { color:red; }
+
+@media print { pre.codeinput, pre.codeoutput { word-wrap:break-word; width:100%; } }
+
+span.keyword { color:#0000FF }
+span.comment { color:#228B22 }
+span.string { color:#A020F0 }
+span.untermstring { color:#B20000 }
+span.syscmd { color:#B28C00 }
+span.typesection { color:#A0522D }
+
+.footer { width:auto; padding:10px 0px; margin:25px 0px 0px; border-top:1px dotted #878787; font-size:0.8em; line-height:140%; font-style:italic; color:#878787; text-align:left; float:none; }
+.footer p { margin:0px; }
+.footer a { color:#878787; }
+.footer a:hover { color:#878787; text-decoration:underline; }
+.footer a:visited { color:#878787; }
+
+table th { padding:7px 5px; text-align:left; vertical-align:middle; border: 1px solid #d6d4d4; font-weight:bold; }
+table td { padding:7px 5px; text-align:left; vertical-align:top; border:1px solid #d6d4d4; }
+
+
+
+
+
+  </style></head><body><div class="content"><h2>Contents</h2><div><ul><li><a href="#2">load data</a></li><li><a href="#3">show input data</a></li><li><a href="#4">perform MSAC to estimate a fundamental matrix</a></li><li><a href="#5">display the result</a></li><li><a href="#6">apply sequential MSAC</a></li><li><a href="#7">show the results</a></li></ul></div><pre class="codeinput"><span class="comment">% this script demonstrates the use of sequential RanSaC to fit multiple</span>
+<span class="comment">% fundamental matrices</span>
+<span class="comment">% IACV 2020 Luca Magri</span>
+<span class="comment">% Politecnico di Milano</span>
+
+addpath(<span class="string">'model_spec'</span>);
+<span class="comment">%addpath(genpath('/Users/lucamagri/Activities/Develop/Codes/tslnk'));</span>
+close <span class="string">all</span>;
+clear <span class="string">variables</span>;
+</pre><h2 id="2">load data</h2><pre class="codeinput">temp = load(<span class="string">'breadtoy.mat'</span>);
+img1  = temp.img1;
+img2  = temp.img2;
+G = temp.label(:);
+X = temp.data;
+</pre><h2 id="3">show input data</h2><pre class="codeinput">figure;
+subplot(1,2,1);
+imshow(img1);
+hold <span class="string">on</span>;
+scatter(X(1,:),X(2,:),<span class="string">'filled'</span>);
+title(<span class="string">'image 1'</span>)
+subplot(1,2,2);
+imshow(img2);
+hold <span class="string">on</span>;
+scatter(X(4,:),X(5,:),<span class="string">'filled'</span>);
+title(<span class="string">'image 2'</span>);
+sgtitle(<span class="string">'Correspondences'</span>);
+</pre><img vspace="5" hspace="5" src="demo_seq_ransac_01.png" alt=""> <h2 id="4">perform MSAC to estimate a fundamental matrix</h2><pre class="codeinput">modelfit = @fit_fm; <span class="comment">% specify the function to fit a fundamental matrix</span>
+modeldist = @res_fm; <span class="comment">% specify the function to compute the sampson distance between matches and fundamental matrix</span>
+p = 8; <span class="comment">% size of the minimum sample set</span>
+t = 5; <span class="comment">% inlier threhsold</span>
+
+<span class="comment">% naive implementation of simpleMSAC (uncomment to play with it)</span>
+<span class="comment">%[inliers, F] = simpleMSAC(X,modelfit, modeldist, p, t);</span>
+<span class="comment">%F = fit_fm(X(:,inliers));</span>
+<span class="comment">%inliers = res_fm(F,X)&lt;t;</span>
+
+[F,inliers] = estimateFundamentalMatrix(X(1:2,:)',X(4:5,:)',<span class="string">'Method'</span>,<span class="string">'MSAC'</span>,<span class="string">'DistanceType'</span>,<span class="string">'sampson'</span>,<span class="string">'DistanceThreshold'</span>,t,<span class="string">'NumTrials'</span>,5000);
+</pre><h2 id="5">display the result</h2><pre class="codeinput">figure;
+subplot(1,2,1);
+imshow(img1);
+hold <span class="string">all</span>;
+scatter(X(1,:),X(2,:),<span class="string">'filled'</span>);
+scatter(X(1,inliers),X(2,inliers),<span class="string">'filled'</span>);
+title(<span class="string">'image 1'</span>)
+subplot(1,2,2);
+imshow(img2);
+hold <span class="string">all</span>;
+scatter(X(4,:),X(5,:),<span class="string">'filled'</span>);
+scatter(X(4,inliers),X(5,inliers),<span class="string">'filled'</span>);
+title(<span class="string">'image 2'</span>);
+sgtitle(<span class="string">'inliers detected by msac'</span>);
+
+<span class="comment">% display matched inliers</span>
+figure;
+showMatchedFeatures(img1,img2,X(1:2,inliers)',X(4:5,inliers)',<span class="string">'montage'</span>,<span class="string">'PlotOptions'</span>,{<span class="string">'ro'</span>,<span class="string">'go'</span>,<span class="string">'y--'</span>});
+title(<span class="string">'Putative matches'</span>);
+
+<span class="comment">% display the epipolar lines in the second image</span>
+<span class="comment">% inlers should be close to their corresponding epipolar line</span>
+epiLines = epipolarLine(F,X(1:2,inliers)');
+points = lineToBorderPoints(epiLines,size(img2));
+figure; imshow(img2);
+hold <span class="string">all</span>;
+line(points(:,[1,3])',points(:,[2,4])',<span class="string">'Color'</span>,<span class="string">'red'</span>);
+scatter(X(4,inliers),X(5,inliers),<span class="string">'filled'</span>);
+title(<span class="string">'Epipolar lines using the estimated F'</span>);
+</pre><img vspace="5" hspace="5" src="demo_seq_ransac_02.png" alt=""> <img vspace="5" hspace="5" src="demo_seq_ransac_03.png" alt=""> <img vspace="5" hspace="5" src="demo_seq_ransac_04.png" alt=""> <h2 id="6">apply sequential MSAC</h2><p>iteratively fit a fundamental matrix and extract inliers</p><pre class="codeinput">Y = X;
+C = zeros(size(X,2),1);
+cont = 1;
+
+minNumPoints = 100;
+
+<span class="keyword">while</span>(size(Y,2)&gt;minNumPoints)
+    [F,inliers] = estimateFundamentalMatrix(Y(1:2,:)',Y(4:5,:)',<span class="string">'Method'</span>,<span class="string">'MSAC'</span>,<span class="string">'DistanceType'</span>,<span class="string">'sampson'</span>,<span class="string">'DistanceThreshold'</span>,t,<span class="string">'NumTrials'</span>,5000);
+    C(C==0) = cont*inliers;
+
+    Y(:,inliers) =[]; <span class="comment">% remove found inliers</span>
+    cont = cont+1;
+<span class="keyword">end</span>
+</pre><pre class="codeoutput">Warning: Maximum number of trials reached. Consider increasing the maximum
+distance or decreasing the desired confidence. 
+Warning: Maximum number of trials reached. Consider increasing the maximum
+distance or decreasing the desired confidence. 
+Warning: Maximum number of trials reached. Consider increasing the maximum
+distance or decreasing the desired confidence. 
+</pre><h2 id="7">show the results</h2><p>color-coded inliers of different fundamental matrices</p><pre class="codeinput">figure;
+subplot(1,2,1);
+imshow(img1);
+hold <span class="string">on</span>;
+gscatter(X(1,:),X(2,:),C);
+legend <span class="string">off</span>;
+subplot(1,2,2);
+imshow(img2);
+hold <span class="string">all</span>;
+gscatter(X(4,:),X(5,:),C);
+legend <span class="string">off</span>;
+sgtitle(<span class="string">'Result of sequential MSAC'</span>)
+</pre><img vspace="5" hspace="5" src="demo_seq_ransac_05.png" alt=""> <p class="footer"><br><a href="https://www.mathworks.com/products/matlab/">Published with MATLAB&reg; R2021b</a><br></p></div><!--
+##### SOURCE BEGIN #####
+% this script demonstrates the use of sequential RanSaC to fit multiple
+% fundamental matrices
+% IACV 2020 Luca Magri
+% Politecnico di Milano
+
+addpath('model_spec');
+%addpath(genpath('/Users/lucamagri/Activities/Develop/Codes/tslnk'));
+close all;
+clear variables;
+
+%% load data
+
+temp = load('breadtoy.mat');
+img1  = temp.img1;
+img2  = temp.img2;
+G = temp.label(:);
+X = temp.data;
+
+%% show input data
+figure;
+subplot(1,2,1);
+imshow(img1);
+hold on;
+scatter(X(1,:),X(2,:),'filled');
+title('image 1')
+subplot(1,2,2);
+imshow(img2);
+hold on;
+scatter(X(4,:),X(5,:),'filled');
+title('image 2');
+sgtitle('Correspondences');
+
+%% perform MSAC to estimate a fundamental matrix
+
+
+modelfit = @fit_fm; % specify the function to fit a fundamental matrix
+modeldist = @res_fm; % specify the function to compute the sampson distance between matches and fundamental matrix
+p = 8; % size of the minimum sample set
+t = 5; % inlier threhsold
+
+% naive implementation of simpleMSAC (uncomment to play with it)
+%[inliers, F] = simpleMSAC(X,modelfit, modeldist, p, t);
+%F = fit_fm(X(:,inliers));
+%inliers = res_fm(F,X)<t;
+
+[F,inliers] = estimateFundamentalMatrix(X(1:2,:)',X(4:5,:)','Method','MSAC','DistanceType','sampson','DistanceThreshold',t,'NumTrials',5000);
+
+%% display the result
+
+figure;
+subplot(1,2,1);
+imshow(img1);
+hold all;
+scatter(X(1,:),X(2,:),'filled');
+scatter(X(1,inliers),X(2,inliers),'filled');
+title('image 1')
+subplot(1,2,2);
+imshow(img2);
+hold all;
+scatter(X(4,:),X(5,:),'filled');
+scatter(X(4,inliers),X(5,inliers),'filled');
+title('image 2');
+sgtitle('inliers detected by msac');
+
+% display matched inliers
+figure;
+showMatchedFeatures(img1,img2,X(1:2,inliers)',X(4:5,inliers)','montage','PlotOptions',{'ro','go','yREPLACE_WITH_DASH_DASH'});
+title('Putative matches');
+
+% display the epipolar lines in the second image
+% inlers should be close to their corresponding epipolar line
+epiLines = epipolarLine(F,X(1:2,inliers)');
+points = lineToBorderPoints(epiLines,size(img2));
+figure; imshow(img2);
+hold all;
+line(points(:,[1,3])',points(:,[2,4])','Color','red');
+scatter(X(4,inliers),X(5,inliers),'filled');
+title('Epipolar lines using the estimated F');
+
+%% apply sequential MSAC
+% iteratively fit a fundamental matrix and extract inliers
+
+Y = X;
+C = zeros(size(X,2),1);
+cont = 1;
+
+minNumPoints = 100;
+
+while(size(Y,2)>minNumPoints)
+    [F,inliers] = estimateFundamentalMatrix(Y(1:2,:)',Y(4:5,:)','Method','MSAC','DistanceType','sampson','DistanceThreshold',t,'NumTrials',5000); 
+    C(C==0) = cont*inliers;
+    
+    Y(:,inliers) =[]; % remove found inliers
+    cont = cont+1;
+end
+
+%% show the results
+% color-coded inliers of different fundamental matrices
+figure;
+subplot(1,2,1);
+imshow(img1);
+hold on;
+gscatter(X(1,:),X(2,:),C);
+legend off;
+subplot(1,2,2);
+imshow(img2);
+hold all;
+gscatter(X(4,:),X(5,:),C);
+legend off;
+sgtitle('Result of sequential MSAC')
+##### SOURCE END #####
+--></body></html>

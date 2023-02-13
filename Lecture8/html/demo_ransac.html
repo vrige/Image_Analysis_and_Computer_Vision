@@ -1,0 +1,395 @@
+
+<!DOCTYPE html
+  PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html><head>
+      <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+   <!--
+This HTML was auto-generated from MATLAB code.
+To make changes, update the MATLAB code and republish this document.
+      --><title>demo_ransac</title><meta name="generator" content="MATLAB 9.11"><link rel="schema.DC" href="http://purl.org/dc/elements/1.1/"><meta name="DC.date" content="2022-12-20"><meta name="DC.source" content="demo_ransac.m"><style type="text/css">
+html,body,div,span,applet,object,iframe,h1,h2,h3,h4,h5,h6,p,blockquote,pre,a,abbr,acronym,address,big,cite,code,del,dfn,em,font,img,ins,kbd,q,s,samp,small,strike,strong,tt,var,b,u,i,center,dl,dt,dd,ol,ul,li,fieldset,form,label,legend,table,caption,tbody,tfoot,thead,tr,th,td{margin:0;padding:0;border:0;outline:0;font-size:100%;vertical-align:baseline;background:transparent}body{line-height:1}ol,ul{list-style:none}blockquote,q{quotes:none}blockquote:before,blockquote:after,q:before,q:after{content:'';content:none}:focus{outine:0}ins{text-decoration:none}del{text-decoration:line-through}table{border-collapse:collapse;border-spacing:0}
+
+html { min-height:100%; margin-bottom:1px; }
+html body { height:100%; margin:0px; font-family:Arial, Helvetica, sans-serif; font-size:10px; color:#000; line-height:140%; background:#fff none; overflow-y:scroll; }
+html body td { vertical-align:top; text-align:left; }
+
+h1 { padding:0px; margin:0px 0px 25px; font-family:Arial, Helvetica, sans-serif; font-size:1.5em; color:#d55000; line-height:100%; font-weight:normal; }
+h2 { padding:0px; margin:0px 0px 8px; font-family:Arial, Helvetica, sans-serif; font-size:1.2em; color:#000; font-weight:bold; line-height:140%; border-bottom:1px solid #d6d4d4; display:block; }
+h3 { padding:0px; margin:0px 0px 5px; font-family:Arial, Helvetica, sans-serif; font-size:1.1em; color:#000; font-weight:bold; line-height:140%; }
+
+a { color:#005fce; text-decoration:none; }
+a:hover { color:#005fce; text-decoration:underline; }
+a:visited { color:#004aa0; text-decoration:none; }
+
+p { padding:0px; margin:0px 0px 20px; }
+img { padding:0px; margin:0px 0px 20px; border:none; }
+p img, pre img, tt img, li img, h1 img, h2 img { margin-bottom:0px; }
+
+ul { padding:0px; margin:0px 0px 20px 23px; list-style:square; }
+ul li { padding:0px; margin:0px 0px 7px 0px; }
+ul li ul { padding:5px 0px 0px; margin:0px 0px 7px 23px; }
+ul li ol li { list-style:decimal; }
+ol { padding:0px; margin:0px 0px 20px 0px; list-style:decimal; }
+ol li { padding:0px; margin:0px 0px 7px 23px; list-style-type:decimal; }
+ol li ol { padding:5px 0px 0px; margin:0px 0px 7px 0px; }
+ol li ol li { list-style-type:lower-alpha; }
+ol li ul { padding-top:7px; }
+ol li ul li { list-style:square; }
+
+.content { font-size:1.2em; line-height:140%; padding: 20px; }
+
+pre, code { font-size:12px; }
+tt { font-size: 1.2em; }
+pre { margin:0px 0px 20px; }
+pre.codeinput { padding:10px; border:1px solid #d3d3d3; background:#f7f7f7; }
+pre.codeoutput { padding:10px 11px; margin:0px 0px 20px; color:#4c4c4c; }
+pre.error { color:red; }
+
+@media print { pre.codeinput, pre.codeoutput { word-wrap:break-word; width:100%; } }
+
+span.keyword { color:#0000FF }
+span.comment { color:#228B22 }
+span.string { color:#A020F0 }
+span.untermstring { color:#B20000 }
+span.syscmd { color:#B28C00 }
+span.typesection { color:#A0522D }
+
+.footer { width:auto; padding:10px 0px; margin:25px 0px 0px; border-top:1px dotted #878787; font-size:0.8em; line-height:140%; font-style:italic; color:#878787; text-align:left; float:none; }
+.footer p { margin:0px; }
+.footer a { color:#878787; }
+.footer a:hover { color:#878787; text-decoration:underline; }
+.footer a:visited { color:#878787; }
+
+table th { padding:7px 5px; text-align:left; vertical-align:middle; border: 1px solid #d6d4d4; font-weight:bold; }
+table td { padding:7px 5px; text-align:left; vertical-align:top; border:1px solid #d6d4d4; }
+
+
+
+
+
+  </style></head><body><div class="content"><h2>Contents</h2><div><ul><li><a href="#2">create data</a></li><li><a href="#3">perform MSAC to estimate a circle</a></li><li><a href="#4">Visualize the solution</a></li><li><a href="#5">compare the solution with respect to the ground truth</a></li></ul></div><pre class="codeinput"><span class="comment">% this script demonstrates the use of RanSaC to robustly fit a single</span>
+<span class="comment">% instance of a circle to noisy data.</span>
+<span class="comment">% Inshights on MSAC are presented and also on LO-RANSAC</span>
+<span class="comment">% IACV 2022 Luca Magri</span>
+<span class="comment">% Politecnico di Milano</span>
+
+addpath(<span class="string">'model_spec/'</span>);
+close <span class="string">all</span>;
+clear <span class="string">variables</span>;
+</pre><h2 id="2">create data</h2><pre class="codeinput"><span class="comment">% let's create some points on a cirlce</span>
+num_inliers = 100;
+rho = 2;
+theta = linspace(0,2*pi, num_inliers);
+
+
+
+X = [rho*cos(theta); rho*sin(theta)];
+
+figure;
+scatter(X(1,:),X(2,:));
+axis <span class="string">off</span>;
+axis <span class="string">equal</span>;
+title(<span class="string">'Clean data'</span>);
+
+<span class="comment">% now let's add some noise</span>
+sigma = 0.1;
+X = X+sigma*rand(size(X));
+<span class="comment">% evaluate the gt model on the noisy inliers</span>
+model_gt = fit_circle(X);
+
+
+
+figure;
+hold <span class="string">all</span>;
+scatter(X(1,:),X(2,:));
+drawCircle(model_gt(1),model_gt(2),model_gt(3),<span class="string">'r'</span>);
+axis <span class="string">off</span>;
+axis <span class="string">equal</span>;
+title(<span class="string">'Noisy data'</span>)
+
+
+<span class="comment">% now let's add some outlier: uniform points</span>
+num_outliers = 40*num_inliers;
+
+minx = 2*min(X(1,:));
+maxx = max(X(1,:));
+miny = min(X(2,:));
+maxy = max(X(2,:));
+
+
+Y = [(maxx -minx).*rand(1,num_outliers) + minx; (maxy-miny)*rand(1,num_outliers) + miny];
+X = [X,Y];
+figure;
+hold <span class="string">all</span>;
+scatter(X(1,:),X(2,:));
+drawCircle(model_gt(1),model_gt(2),model_gt(3),<span class="string">'r'</span>);
+axis <span class="string">off</span>;
+axis <span class="string">equal</span>;
+title(<span class="string">'Data corrupted with outliers'</span>)
+</pre><img vspace="5" hspace="5" src="demo_ransac_01.png" alt=""> <img vspace="5" hspace="5" src="demo_ransac_02.png" alt=""> <img vspace="5" hspace="5" src="demo_ransac_03.png" alt=""> <h2 id="3">perform MSAC to estimate a circle</h2><pre class="codeinput">do_show = 1; <span class="comment">% to plot intermediate iterations</span>
+
+
+
+modelfit = @fit_circle;
+modeldist = @dist_circle;
+p = 3;        <span class="comment">% cardinality of the minimum sample set</span>
+
+n = size(X,2); <span class="comment">% Number of points</span>
+alpha = 0.99;  <span class="comment">% Desired probability of success = extracting a pure mss</span>
+f = 0.1 ;      <span class="comment">% Pessimistic estimate of inliers fraction</span>
+
+t = 0.05;  <span class="comment">% Inlier threhshold</span>
+
+MaxIterations = 10000; <span class="comment">% Max number of iterations</span>
+MinIterations = 1000;  <span class="comment">% Min number of iterations</span>
+maxcost = -Inf;
+mincost = Inf;
+
+i = 0;
+<span class="keyword">while</span>  i &lt; max(ceil(log(1-alpha)/log(1-f^p)), MinIterations)
+    <span class="comment">% Generate p random indicies in the range 1..n</span>
+    mss = randsample(n, p);
+
+
+    <span class="comment">% Fit model to this minimal sample set.</span>
+    model = modelfit(X(:,mss));
+
+    <span class="comment">% Evaluate distances between points and model</span>
+    sqres = modeldist(model, X).^2;
+    inliers = sqres &lt; (t^2);
+
+
+    <span class="comment">% Compute RANSAC score</span>
+    cost = sum(inliers);
+    <span class="comment">% Compute MSAc score</span>
+    <span class="comment">%cost = (sum(sqres(inliers)) + (n -sum(inliers)) * t^2);</span>
+
+    <span class="keyword">if</span> (cost &gt; maxcost) <span class="comment">%(cost &lt; mincost)</span>
+        <span class="comment">%mincost = cost;</span>
+        maxcost = cost;
+
+        <span class="comment">% PRO-TIP: LORANSAC- re-estimate the model on the inliers</span>
+        <span class="comment">% to improove the efficiency</span>
+        <span class="comment">%model = modelfit(X(:,inliers));</span>
+        <span class="comment">%sqres = modeldist(model, X).^2;</span>
+        <span class="comment">%inliers = sqres &lt; (t^2);</span>
+
+        bestinliers = inliers;
+        bestmodel = model;
+
+        <span class="comment">%PRO-TIP Update the estimate of inliers fraction</span>
+        <span class="comment">%f = sum(bestinliers)/n;</span>
+
+        <span class="keyword">if</span>(do_show)
+            figure
+            clf;
+            hold <span class="string">all</span>;
+            displayAnularBand(X,model, t,[0,0,1]); <span class="comment">% inlier band</span>
+            drawCircle( model(1),model(2),model(3)); <span class="comment">% model parameters</span>
+            scatter(X(1,:),X(2,:),<span class="string">'k.'</span>);
+            scatter(X(1,inliers),X(2,inliers),<span class="string">'g.'</span>);
+            plot(X(1,mss),X(2,mss),<span class="string">'b+'</span>,<span class="string">'MarkerSize'</span>,50,<span class="string">'LineWidth'</span>,2); <span class="comment">% mss</span>
+            axis <span class="string">equal</span>;
+            title([<span class="string">"iter: "</span>, num2str(i),<span class="string">" cost:"</span>, num2str(maxcost)]);
+            xlim([minx-0.1,maxx+0.1])
+            ylim([miny-0.1,maxy+0.1])
+            pause
+        <span class="keyword">end</span>
+    <span class="keyword">end</span>
+    i = i + 1;
+    <span class="keyword">if</span> (i &gt; MaxIterations)
+        <span class="keyword">break</span>;
+    <span class="keyword">end</span>
+<span class="keyword">end</span>
+</pre><img vspace="5" hspace="5" src="demo_ransac_04.png" alt=""> <h2 id="4">Visualize the solution</h2><pre class="codeinput">figure
+hold <span class="string">all</span>;
+<span class="comment">%displayAnularBand(X,bestmodel, t,[0,0,1]);</span>
+drawCircle( bestmodel(1),bestmodel(2),bestmodel(3),<span class="string">'b'</span>);
+drawCircle( model_gt(1),model_gt(2),model_gt(3),<span class="string">'r'</span>);
+
+scatter(X(1,:),X(2,:),<span class="string">'k.'</span>);
+title([<span class="string">'Number of iterations '</span>, num2str(i)]);
+legend(<span class="string">'estimated model'</span>, <span class="string">'gt model'</span>);
+axis <span class="string">equal</span>;
+</pre><img vspace="5" hspace="5" src="demo_ransac_05.png" alt=""> <h2 id="5">compare the solution with respect to the ground truth</h2><pre class="codeinput">sqres_gt = modeldist(model_gt, X).^2;
+inliers_gt = sqres &lt; (t^2);
+cost_gt = sum(inliers_gt)
+maxcost
+</pre><pre class="codeoutput">
+cost_gt =
+
+   134
+
+
+maxcost =
+
+   267
+
+</pre><p class="footer"><br><a href="https://www.mathworks.com/products/matlab/">Published with MATLAB&reg; R2021b</a><br></p></div><!--
+##### SOURCE BEGIN #####
+% this script demonstrates the use of RanSaC to robustly fit a single
+% instance of a circle to noisy data.
+% Inshights on MSAC are presented and also on LO-RANSAC 
+% IACV 2022 Luca Magri
+% Politecnico di Milano
+
+addpath('model_spec/');
+close all;
+clear variables;
+
+%% create data
+
+% let's create some points on a cirlce
+num_inliers = 100;
+rho = 2;
+theta = linspace(0,2*pi, num_inliers);
+
+
+
+X = [rho*cos(theta); rho*sin(theta)];
+
+figure;
+scatter(X(1,:),X(2,:));
+axis off;
+axis equal;
+title('Clean data');
+
+% now let's add some noise
+sigma = 0.1;
+X = X+sigma*rand(size(X));
+% evaluate the gt model on the noisy inliers
+model_gt = fit_circle(X);
+
+
+
+figure;
+hold all;
+scatter(X(1,:),X(2,:));
+drawCircle(model_gt(1),model_gt(2),model_gt(3),'r');
+axis off;
+axis equal;
+title('Noisy data')
+
+
+% now let's add some outlier: uniform points
+num_outliers = 40*num_inliers;
+
+minx = 2*min(X(1,:));
+maxx = max(X(1,:));
+miny = min(X(2,:));
+maxy = max(X(2,:));
+
+
+Y = [(maxx -minx).*rand(1,num_outliers) + minx; (maxy-miny)*rand(1,num_outliers) + miny];
+X = [X,Y];
+figure;
+hold all;
+scatter(X(1,:),X(2,:));
+drawCircle(model_gt(1),model_gt(2),model_gt(3),'r');
+axis off;
+axis equal;
+title('Data corrupted with outliers')
+
+
+%% perform MSAC to estimate a circle
+
+do_show = 1; % to plot intermediate iterations
+
+
+
+modelfit = @fit_circle;
+modeldist = @dist_circle;
+p = 3;        % cardinality of the minimum sample set
+
+n = size(X,2); % Number of points
+alpha = 0.99;  % Desired probability of success = extracting a pure mss
+f = 0.1 ;      % Pessimistic estimate of inliers fraction
+
+t = 0.05;  % Inlier threhshold
+
+MaxIterations = 10000; % Max number of iterations
+MinIterations = 1000;  % Min number of iterations
+maxcost = -Inf;
+mincost = Inf;
+
+i = 0;
+while  i < max(ceil(log(1-alpha)/log(1-f^p)), MinIterations)
+    % Generate p random indicies in the range 1..n
+    mss = randsample(n, p);
+
+
+    % Fit model to this minimal sample set.
+    model = modelfit(X(:,mss));
+
+    % Evaluate distances between points and model
+    sqres = modeldist(model, X).^2;
+    inliers = sqres < (t^2);
+
+
+    % Compute RANSAC score
+    cost = sum(inliers);
+    % Compute MSAc score
+    %cost = (sum(sqres(inliers)) + (n -sum(inliers)) * t^2);
+
+    if (cost > maxcost) %(cost < mincost)
+        %mincost = cost;
+        maxcost = cost;
+
+        % PRO-TIP: LORANSAC- re-estimate the model on the inliers
+        % to improove the efficiency
+        %model = modelfit(X(:,inliers));
+        %sqres = modeldist(model, X).^2;
+        %inliers = sqres < (t^2);
+        
+        bestinliers = inliers;
+        bestmodel = model;
+
+        %PRO-TIP Update the estimate of inliers fraction
+        %f = sum(bestinliers)/n;
+
+        if(do_show)
+            figure
+            clf;
+            hold all;
+            displayAnularBand(X,model, t,[0,0,1]); % inlier band
+            drawCircle( model(1),model(2),model(3)); % model parameters
+            scatter(X(1,:),X(2,:),'k.');
+            scatter(X(1,inliers),X(2,inliers),'g.');
+            plot(X(1,mss),X(2,mss),'b+','MarkerSize',50,'LineWidth',2); % mss
+            axis equal;
+            title(["iter: ", num2str(i)," cost:", num2str(maxcost)]);
+            xlim([minx-0.1,maxx+0.1])
+            ylim([miny-0.1,maxy+0.1])
+            pause
+        end
+    end
+    i = i + 1;
+    if (i > MaxIterations)
+        break;
+    end
+end
+
+
+
+
+%% Visualize the solution
+
+figure
+hold all;
+%displayAnularBand(X,bestmodel, t,[0,0,1]);
+drawCircle( bestmodel(1),bestmodel(2),bestmodel(3),'b');
+drawCircle( model_gt(1),model_gt(2),model_gt(3),'r');
+
+scatter(X(1,:),X(2,:),'k.');
+title(['Number of iterations ', num2str(i)]);
+legend('estimated model', 'gt model');
+axis equal;
+
+%% compare the solution with respect to the ground truth
+sqres_gt = modeldist(model_gt, X).^2;
+inliers_gt = sqres < (t^2);
+cost_gt = sum(inliers_gt)
+maxcost
+
+##### SOURCE END #####
+--></body></html>
